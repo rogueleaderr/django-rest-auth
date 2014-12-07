@@ -7,8 +7,8 @@ class SocialLoginSerializer(serializers.Serializer):
 
     access_token = serializers.CharField(required=True)
 
-    def validate_access_token(self, attrs, source):
-        access_token = attrs[source]
+    def validate_access_token(self, value):
+        access_token = value
 
         view = self.context.get('view')
         request = self.context.get('request')
@@ -40,4 +40,4 @@ class SocialLoginSerializer(serializers.Serializer):
             login.save(request, connect=True)
         self.object = {'user': login.account.user}
 
-        return attrs
+        return value
