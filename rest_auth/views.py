@@ -1,5 +1,7 @@
 from django.contrib.auth import login, logout
 from django.conf import settings
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 
 from rest_framework import status
 from rest_framework.views import APIView
@@ -10,12 +12,20 @@ from rest_framework.authtoken.models import Token
 from rest_framework.generics import RetrieveUpdateAPIView
 
 from .app_settings import (TokenSerializer, UserDetailsSerializer,
-    LoginSerializer, PasswordResetSerializer, PasswordResetConfirmSerializer,
-    PasswordChangeSerializer)
+                           LoginSerializer, PasswordResetSerializer, PasswordResetConfirmSerializer,
+                           PasswordChangeSerializer)
+
+from rest_framework.authentication import SessionAuthentication as OriginalSessionAuthentication
+
+
+# DRF performs an implicit CSRF check on session auth (e.g. from iPhone), EVEN IF CSRF_EXEMPT IS SET, so need override
+# See http://stackoverflow.com/a/17424074/998687
+class SessionAuthentication(OriginalSessionAuthentication):
+    def enforce_csrf(self, request):
+        return
 
 
 class Login(GenericAPIView):
-
     """
     Check the credentials and return the REST Token
     if the credentials are valid and authenticated.
@@ -29,6 +39,7 @@ class Login(GenericAPIView):
     serializer_class = LoginSerializer
     token_model = Token
     response_serializer = TokenSerializer
+    authentication_classes = (SessionAuthentication,)
 
     def login(self):
         self.user = self.serializer.object['user']
@@ -37,13 +48,14 @@ class Login(GenericAPIView):
         if getattr(settings, 'REST_SESSION_LOGIN', True):
             login(self.request, self.user)
 
+
     def get_response(self):
         return Response(self.response_serializer(self.token).data,
-            status=status.HTTP_200_OK)
+                        status=status.HTTP_200_OK)
 
     def get_error_response(self):
         return Response(self.serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST)
+                        status=status.HTTP_400_BAD_REQUEST)
 
     def post(self, request, *args, **kwargs):
         self.serializer = self.get_serializer(data=self.request.DATA)
@@ -54,7 +66,6 @@ class Login(GenericAPIView):
 
 
 class Logout(APIView):
-
     """
     Calls Django logout method and delete the Token object
     assigned to the current User object.
@@ -76,7 +87,6 @@ class Logout(APIView):
 
 
 class UserDetails(RetrieveUpdateAPIView):
-
     """
     Returns User's details in JSON format.
 
@@ -94,7 +104,6 @@ class UserDetails(RetrieveUpdateAPIView):
 
 
 class PasswordReset(GenericAPIView):
-
     """
     Calls Django Auth PasswordResetForm save method.
 
@@ -115,11 +124,10 @@ class PasswordReset(GenericAPIView):
         serializer.save()
         # Return the success message with OK HTTP status
         return Response({"success": "Password reset e-mail has been sent."},
-                         status=status.HTTP_200_OK)
+                        status=status.HTTP_200_OK)
 
 
 class PasswordResetConfirm(GenericAPIView):
-
     """
     Password reset e-mail link is confirmed, therefore this resets the user's password.
 
@@ -135,13 +143,12 @@ class PasswordResetConfirm(GenericAPIView):
         serializer = self.get_serializer(data=request.DATA)
         if not serializer.is_valid():
             return Response(serializer.errors,
-                status=status.HTTP_400_BAD_REQUEST)
+                            status=status.HTTP_400_BAD_REQUEST)
         serializer.save()
         return Response({"success": "Password has been reset with the new password."})
 
 
 class PasswordChange(GenericAPIView):
-
     """
     Calls Django Auth SetPasswordForm save method.
 
@@ -156,6 +163,6 @@ class PasswordChange(GenericAPIView):
         serializer = self.get_serializer(data=request.DATA)
         if not serializer.is_valid():
             return Response(serializer.errors,
-                status=status.HTTP_400_BAD_REQUEST)
+                            status=status.HTTP_400_BAD_REQUEST)
         serializer.save()
         return Response({"success": "New password has been saved."})
