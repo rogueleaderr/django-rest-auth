@@ -39,7 +39,12 @@ class SocialLoginSerializer(serializers.Serializer):
 
         if not login.is_existing:
             login.lookup()
-            login.save(request, connect=True)
+            if not login.account.user.username:
+                login.account.user.username = "_".join([login.account.user.first_name, login.account.user.last_name])
+            try:
+                login.save(request, connect=True)
+            except Exception as e:
+                import ipdb ; ipdb.set_trace()
         self.object = {'user': login.account.user}
 
         return value
